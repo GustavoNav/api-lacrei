@@ -10,10 +10,18 @@ clone o repositório:
 git clone https://github.com/GustavoNav/api-lacrei
 ```
 
+Acesse o diretório do projeto:
+
+```
+cd api-lacrei
+```
+
 crie o ambiente virtual:
 ```
 python3 -m venv venv
 ```
+
+
 Ative o Ambiente Virtual
 
 - No Windows:
