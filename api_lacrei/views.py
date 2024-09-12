@@ -2,8 +2,12 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
+from django.utils.html import escape
+from django.core.exceptions import ValidationError
+
 from .models import Profissional, Contato, Consulta
 from .serializers import ProfissionalSerializer, ConsultaSerializer, ContatoSerializer
+
 
 
 # Função central para manipular diferentes modelos (Profissionais, Contatos, Consultas) com base na URL
@@ -23,23 +27,41 @@ def handle_request(request, model_name):
 def profissional_crud(request):
     # Inserir novo Profissional (POST)
     if request.method == 'POST':
-        profissional = ProfissionalSerializer(data=request.data)
-        if not profissional.is_valid():
-            return Response(profissional.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Salva o novo profissional no banco de dados
-        profissional.save()
-        return Response(profissional.data, status=status.HTTP_201_CREATED)
+        # Sanitizar campos vulneráveis
+        data_sanitized = {
+            key: escape(value) if key in ['nome_completo', 'endereco', 'nome_social', 'profissao'] and isinstance(value, str) else value 
+            for key, value in request.data.items()
+        }
+        try:
+            profissional = ProfissionalSerializer(data=data_sanitized)
+            if not profissional.is_valid():
+                return Response(profissional.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Salva o novo profissional no banco de dados
+            profissional.save()
+            return Response(profissional.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     # Atualizar dados de um Profissional (PUT)
     elif request.method == 'PUT':
         try:
             # Busca o profissional a ser atualizado com base no ID fornecido
             id_profissional = request.data.get('id_profissional')
+
+            if not id_profissional:
+                return Response({'error': 'ID do profissional é necessário'}, status=status.HTTP_400_BAD_REQUEST)
+            
             profissional = Profissional.objects.get(id_profissional=id_profissional)
             
+            # Sanitizar campos vulneráveis
+            data_sanitized = {
+                key: escape(value) if key in ['nome_completo', 'endereco', 'nome_social', 'profissao'] and isinstance(value, str) else value
+                for key, value in request.data.items()
+            }
+
             # Serializa os novos dados (parcialmente, apenas os fornecidos)
-            serializer = ProfissionalSerializer(profissional, data=request.data, partial=True)
+            serializer = ProfissionalSerializer(profissional, data=data_sanitized, partial=True)
 
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -47,8 +69,15 @@ def profissional_crud(request):
             # Salva as alterações no banco de dados
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Profissional.DoesNotExist:
             return Response({'error': 'Profissional não encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        except ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({'error': 'Erro ao processar a requisição'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     # Deletar Profissional (DELETE)
     elif request.method == 'DELETE':
@@ -61,6 +90,8 @@ def profissional_crud(request):
             return Response({'message': 'Profissional deletado com sucesso'}, status=status.HTTP_204_NO_CONTENT)
         except Profissional.DoesNotExist:
             return Response({'error': 'Profissional não encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     else:
         return Response({'error': 'Método não suportado'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
@@ -70,7 +101,13 @@ def profissional_crud(request):
 def contato_crud(request):
     # Inserir novo Contato (POST)
     if request.method == 'POST':
-        contato = ContatoSerializer(data=request.data)
+        # Sanitizar campos vulneráveis
+        data_sanitized = {
+            key: escape(value) if key in ['tipo', 'contato'] and isinstance(value, str) else value 
+            for key, value in request.data.items()
+        }
+
+        contato = ContatoSerializer(data=data_sanitized)
         
         if not contato.is_valid():
             return Response(contato.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -81,19 +118,30 @@ def contato_crud(request):
             Profissional.objects.get(id_profissional=profissional_id)
         except Profissional.DoesNotExist:
             return Response({'error': 'Não existe profissional vinculado ao id passado'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Salva o contato no banco de dados
-        contato.save()
-        return Response(contato.data, status=status.HTTP_201_CREATED)
 
+        try:
+            # Salva o contato no banco de dados
+            contato.save()
+            return Response(contato.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
     # Atualizar Contato (PUT)
     elif request.method == 'PUT':
         id_contato = request.data.get('id_contato')
         
+        if not id_contato:
+            return Response({'error': 'ID do contato é necessário'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        data_sanitized = {
+            key: escape(value) if key in ['tipo', 'contato'] and isinstance(value, str) else value 
+            for key, value in request.data.items()
+        }
+
         try:
             # Busca o contato a ser atualizado
             contato = Contato.objects.get(id_contato=id_contato)
-            serializer = ContatoSerializer(contato, data=request.data, partial=True)
+            serializer = ContatoSerializer(contato, data=data_sanitized, partial=True)
             
             # Valida os novos dados
             if not serializer.is_valid():
@@ -105,6 +153,8 @@ def contato_crud(request):
         
         except Contato.DoesNotExist:
             return Response({'error': 'Contato não encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     # Deletar Contato (DELETE)
     elif request.method == 'DELETE':
