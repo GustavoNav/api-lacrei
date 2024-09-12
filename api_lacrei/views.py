@@ -9,7 +9,6 @@ from .models import Profissional, Contato, Consulta
 from .serializers import ProfissionalSerializer, ConsultaSerializer, ContatoSerializer
 
 
-
 # Função central para manipular diferentes modelos (Profissionais, Contatos, Consultas) com base na URL
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
 def handle_request(request, model_name):
